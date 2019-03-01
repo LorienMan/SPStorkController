@@ -26,11 +26,23 @@ class ModalTableViewController: UIViewController {
         self.view.addSubview(self.navBar)
         
         self.updateLayout(with: self.view.frame.size)
+
+        let presentationController = self.presentationController as? SPStorkPresentationControllerProtocol
+        presentationController?.scrollView = tableView
+        presentationController?.scaleEnabled = true
+        presentationController?.frictionEnabled = false
     }
-    
+
+    override func viewWillAppear(_ animated: Bool) {
+        super.viewWillAppear(animated)
+    }
+
     override func viewWillLayoutSubviews() {
         super.viewWillLayoutSubviews()
         self.updateLayout(with: self.view.frame.size)
+
+        let presentationController = self.presentationController as? SPStorkPresentationControllerProtocol
+        presentationController?.updateCustomHeight(self.view.frame.size.width)
     }
     
     func updateLayout(with size: CGSize) {
@@ -57,9 +69,5 @@ extension ModalTableViewController: UITableViewDataSource {
 }
 
 extension ModalTableViewController: UITableViewDelegate {
-    
-    func scrollViewDidScroll(_ scrollView: UIScrollView) {
-        SPStorkController.scrollViewDidScroll(scrollView)
-    }
 }
 
