@@ -21,50 +21,105 @@
 
 import UIKit
 
-class SPStorkPresentationController: UIPresentationController, UIGestureRecognizerDelegate {
-    
+public protocol SPStorkPresentationControllerProtocol: class {
+    var scaleEnabled: Bool { get set }
+    var frictionEnabled: Bool { get set }
+    var scrollView: UIScrollView? { get set }
+
+    func updateCustomHeight(_ customHeight: CGFloat)
+}
+
+class SPStorkPresentationController: UIPresentationController, UIGestureRecognizerDelegate, SPStorkPresentationControllerProtocol {
+
     var swipeToDismissEnabled: Bool = true
     var tapAroundToDismissEnabled: Bool = true
     var showIndicator: Bool = true
-    var indicatorColor: UIColor = UIColor.init(red: 202/255, green: 201/255, blue: 207/255, alpha: 1)
+    var indicatorColor: UIColor = UIColor.init(red: 202 / 255, green: 201 / 255, blue: 207 / 255, alpha: 1)
     var customHeight: CGFloat? = nil
-    var translateForDismiss: CGFloat = 200
-    
+    var translateForDismiss: CGFloat = 240
+    var scaleEnabled: Bool = true
+    var frictionEnabled: Bool = true
+
+    var scrollView: UIScrollView? {
+        didSet {
+            setupNewCustomScrollViewPan()
+        }
+    }
+
     var transitioningDelegate: SPStorkTransitioningDelegate?
-    
-    var pan: UIPanGestureRecognizer?
-    var tap: UITapGestureRecognizer?
-    
+
+    private(set) var pan: UIPanGestureRecognizer?
+    private(set) var tap: UITapGestureRecognizer?
+    private(set) var customScrollViewPan: UIPanGestureRecognizer?
+
     private var indicatorView = SPStorkIndicatorView()
     private var gradeView: UIView = UIView()
     private let snapshotViewContainer = UIView()
     private var snapshotView: UIView?
     private let backgroundView = UIView()
-    
+
     private var snapshotViewTopConstraint: NSLayoutConstraint?
     private var snapshotViewWidthConstraint: NSLayoutConstraint?
     private var snapshotViewAspectRatioConstraint: NSLayoutConstraint?
-    
-    private var workGester: Bool = false
     private var startDismissing: Bool = false
-    
+    private var currentTranslation: CGFloat = 0
+    private var scrollViewAdjustment: CGFloat = 0
+
     private var topSpace: CGFloat {
         let statusBarHeight: CGFloat = UIApplication.shared.statusBarFrame.height
         return (statusBarHeight < 25) ? 30 : statusBarHeight
     }
-    
-    private let alpha: CGFloat =  0.51
-    private let cornerRadius: CGFloat = 10
-    
-    private var scaleForPresentingView: CGFloat {
-        guard let containerView = containerView else { return 0 }
-        let factor = 1 - (self.topSpace * 2 / containerView.frame.height)
-        return factor
+
+    private var alpha: CGFloat {
+        return 0.51
     }
-    
+
+    private var cornerRadius: CGFloat {
+        return 10
+    }
+
+    private var scaleForPresentingView: CGFloat {
+        if scaleEnabled {
+            guard let containerView = containerView else {
+                return 0
+            }
+
+            let factor = 1 - (self.topSpace * 2 / containerView.frame.height)
+            return factor
+        }
+
+        return 1
+    }
+
+    private var contentHeightAdjustment: CGFloat {
+        return self.topSpace + 13
+    }
+
+    weak var activePresentingAnimationController: SPStorkPresentingAnimationController?
+
+    func updateCustomHeight(_ customHeight: CGFloat) {
+        guard customHeight + contentHeightAdjustment != self.customHeight else {
+            return
+        }
+
+        self.customHeight = customHeight + contentHeightAdjustment
+
+        guard let containerView = self.containerView, containerView.window != nil else {
+            return
+        }
+
+        if let activePresentingAnimationController = activePresentingAnimationController {
+            activePresentingAnimationController.animateTo(frameOfPresentedViewInContainerView)
+        } else {
+            containerView.setNeedsLayout()
+        }
+    }
+
     override var frameOfPresentedViewInContainerView: CGRect {
-        guard let containerView = containerView else { return .zero }
-        
+        guard let containerView = containerView else {
+            return .zero
+        }
+
         var customHeight = self.customHeight ?? containerView.bounds.height
         if customHeight > containerView.bounds.height {
             customHeight = containerView.bounds.height
@@ -74,12 +129,14 @@ class SPStorkPresentationController: UIPresentationController, UIGestureRecogniz
         let yOffset: CGFloat = self.topSpace + 13 + additionTranslate
         return CGRect(x: 0, y: yOffset, width: containerView.bounds.width, height: containerView.bounds.height - yOffset)
     }
-    
+
     override func presentationTransitionWillBegin() {
         super.presentationTransitionWillBegin()
-        
-        guard let containerView = self.containerView, let presentedView = self.presentedView, let window = containerView.window  else { return }
-        
+
+        guard let containerView = self.containerView, let presentedView = self.presentedView, let window = containerView.window else {
+            return
+        }
+
         if self.showIndicator {
             self.indicatorView.color = self.indicatorColor
             let tap = UITapGestureRecognizer.init(target: self, action: #selector(self.dismissAction))
@@ -90,9 +147,9 @@ class SPStorkPresentationController: UIPresentationController, UIGestureRecogniz
         self.updateLayoutIndicator()
         self.indicatorView.style = .arrow
         self.gradeView.alpha = 0
-        
+
         let initialFrame: CGRect = presentingViewController.isPresentedAsStork ? presentingViewController.view.frame : containerView.bounds
-        
+
         containerView.insertSubview(self.snapshotViewContainer, belowSubview: presentedViewController.view)
         self.snapshotViewContainer.frame = initialFrame
         self.updateSnapshot()
@@ -106,14 +163,20 @@ class SPStorkPresentationController: UIPresentationController, UIGestureRecogniz
             self.backgroundView.rightAnchor.constraint(equalTo: window.rightAnchor),
             self.backgroundView.bottomAnchor.constraint(equalTo: window.bottomAnchor)
         ])
-        
-        let transformForSnapshotView = CGAffineTransform.identity
-            .translatedBy(x: 0, y: -snapshotViewContainer.frame.origin.y)
-            .translatedBy(x: 0, y: self.topSpace)
-            .translatedBy(x: 0, y: -snapshotViewContainer.frame.height / 2)
-            .scaledBy(x: scaleForPresentingView, y: scaleForPresentingView)
-            .translatedBy(x: 0, y: snapshotViewContainer.frame.height / 2)
-        
+
+        let transformForSnapshotView: CGAffineTransform
+
+        if scaleEnabled {
+            transformForSnapshotView = CGAffineTransform.identity
+                    .translatedBy(x: 0, y: -snapshotViewContainer.frame.origin.y)
+                    .translatedBy(x: 0, y: self.topSpace)
+                    .translatedBy(x: 0, y: -snapshotViewContainer.frame.height / 2)
+                    .scaledBy(x: scaleForPresentingView, y: scaleForPresentingView)
+                    .translatedBy(x: 0, y: snapshotViewContainer.frame.height / 2)
+        } else {
+            transformForSnapshotView = CGAffineTransform.identity
+        }
+
         self.addCornerRadiusAnimation(for: self.snapshotView, cornerRadius: self.cornerRadius, duration: 0.6)
         self.snapshotView?.layer.masksToBounds = true
         if #available(iOS 11.0, *) {
@@ -121,22 +184,23 @@ class SPStorkPresentationController: UIPresentationController, UIGestureRecogniz
         }
         presentedView.layer.cornerRadius = self.cornerRadius
         presentedView.layer.masksToBounds = true
-        
+
         var rootSnapshotView: UIView?
         var rootSnapshotRoundedView: UIView?
-        
+
         if presentingViewController.isPresentedAsStork {
-            guard let rootController = presentingViewController.presentingViewController, let snapshotView = rootController.view.snapshotView(afterScreenUpdates: false) else { return }
-            
+            guard let rootController = presentingViewController.presentingViewController, let snapshotView = rootController.view.snapshotView(afterScreenUpdates: false) else {
+                return
+            }
+
             containerView.insertSubview(snapshotView, aboveSubview: self.backgroundView)
             snapshotView.frame = initialFrame
             snapshotView.transform = transformForSnapshotView
-            snapshotView.alpha = 1 - self.alpha
+            snapshotView.alpha = self.alpha
             snapshotView.layer.cornerRadius = self.cornerRadius
-            snapshotView.contentMode = .top
             snapshotView.layer.masksToBounds = true
             rootSnapshotView = snapshotView
-            
+
             let snapshotRoundedView = UIView()
             snapshotRoundedView.layer.cornerRadius = self.cornerRadius
             snapshotRoundedView.layer.masksToBounds = true
@@ -145,35 +209,39 @@ class SPStorkPresentationController: UIPresentationController, UIGestureRecogniz
             snapshotRoundedView.transform = transformForSnapshotView
             rootSnapshotRoundedView = snapshotRoundedView
         }
-        
+
         presentedViewController.transitionCoordinator?.animate(
-            alongsideTransition: { [weak self] context in
-                guard let `self` = self else { return }
-                self.snapshotView?.transform = transformForSnapshotView
-                self.gradeView.alpha = self.alpha
-            }, completion: { _ in
-                self.snapshotView?.transform = .identity
-                rootSnapshotView?.removeFromSuperview()
-                rootSnapshotRoundedView?.removeFromSuperview()
+                alongsideTransition: { [weak self] context in
+                    guard let `self` = self else {
+                        return
+                    }
+                    self.snapshotView?.transform = transformForSnapshotView
+                    self.gradeView.alpha = self.alpha
+                }, completion: { _ in
+            self.snapshotView?.transform = .identity
+            rootSnapshotView?.removeFromSuperview()
+            rootSnapshotRoundedView?.removeFromSuperview()
         })
     }
-    
+
     override func presentationTransitionDidEnd(_ completed: Bool) {
         super.presentationTransitionDidEnd(completed)
-        guard let containerView = containerView else { return }
+        guard let containerView = containerView else {
+            return
+        }
         self.updateSnapshot()
         self.presentedViewController.view.frame = self.frameOfPresentedViewInContainerView
         self.snapshotViewContainer.transform = .identity
         self.snapshotViewContainer.translatesAutoresizingMaskIntoConstraints = false
         self.snapshotViewContainer.centerXAnchor.constraint(equalTo: containerView.centerXAnchor).isActive = true
         self.updateSnapshotAspectRatio()
-        
+
         if self.tapAroundToDismissEnabled {
             self.tap = UITapGestureRecognizer.init(target: self, action: #selector(self.dismissAction))
             self.tap?.cancelsTouchesInView = false
             self.snapshotViewContainer.addGestureRecognizer(self.tap!)
         }
-        
+
         if self.swipeToDismissEnabled {
             self.pan = UIPanGestureRecognizer(target: self, action: #selector(self.handlePan))
             self.pan!.delegate = self
@@ -181,84 +249,112 @@ class SPStorkPresentationController: UIPresentationController, UIGestureRecogniz
             self.pan!.cancelsTouchesInView = false
             self.presentedViewController.view.addGestureRecognizer(self.pan!)
         }
+
+        setupNewCustomScrollViewPan()
     }
-    
+
+    private func setupNewCustomScrollViewPan() {
+        guard swipeToDismissEnabled else {
+            return
+        }
+
+        if let customScrollViewPan = customScrollViewPan {
+            customScrollViewPan.view?.removeGestureRecognizer(customScrollViewPan)
+        }
+
+        self.customScrollViewPan = UIPanGestureRecognizer(target: self, action: #selector(self.handleScrollViewPan))
+        self.customScrollViewPan!.delegate = self
+        self.customScrollViewPan!.maximumNumberOfTouches = 1
+        self.customScrollViewPan!.cancelsTouchesInView = false
+        scrollView?.addGestureRecognizer(self.customScrollViewPan!)
+    }
+
     @objc func dismissAction() {
-        self.presentingViewController.view.endEditing(true)
-        self.presentedViewController.view.endEditing(true)
         self.presentedViewController.dismiss(animated: true, completion: nil)
     }
-    
+
     override func dismissalTransitionWillBegin() {
         super.dismissalTransitionWillBegin()
-        guard let containerView = containerView else { return }
+        guard let containerView = containerView else {
+            return
+        }
         self.startDismissing = true
-        
+
         let initialFrame: CGRect = presentingViewController.isPresentedAsStork ? presentingViewController.view.frame : containerView.bounds
 
-        let initialTransform = CGAffineTransform.identity
-            .translatedBy(x: 0, y: -initialFrame.origin.y)
-            .translatedBy(x: 0, y: self.topSpace)
-            .translatedBy(x: 0, y: -initialFrame.height / 2)
-            .scaledBy(x: scaleForPresentingView, y: scaleForPresentingView)
-            .translatedBy(x: 0, y: initialFrame.height / 2)
-        
+        let initialTransform: CGAffineTransform
+        if scaleEnabled {
+            initialTransform = CGAffineTransform.identity
+                    .translatedBy(x: 0, y: -initialFrame.origin.y)
+                    .translatedBy(x: 0, y: self.topSpace)
+                    .translatedBy(x: 0, y: -initialFrame.height / 2)
+                    .scaledBy(x: scaleForPresentingView, y: scaleForPresentingView)
+                    .translatedBy(x: 0, y: initialFrame.height / 2)
+        } else {
+            initialTransform = CGAffineTransform.identity
+        }
+
         self.snapshotViewTopConstraint?.isActive = false
         self.snapshotViewWidthConstraint?.isActive = false
         self.snapshotViewAspectRatioConstraint?.isActive = false
         self.snapshotViewContainer.translatesAutoresizingMaskIntoConstraints = true
         self.snapshotViewContainer.frame = initialFrame
         self.snapshotViewContainer.transform = initialTransform
-        
+
         let finalCornerRadius = presentingViewController.isPresentedAsStork ? self.cornerRadius : 0
         let finalTransform: CGAffineTransform = .identity
-        
+
         self.addCornerRadiusAnimation(for: self.snapshotView, cornerRadius: finalCornerRadius, duration: 0.6)
-        
+
         var rootSnapshotView: UIView?
         var rootSnapshotRoundedView: UIView?
-        
+
         if presentingViewController.isPresentedAsStork {
-            guard let rootController = presentingViewController.presentingViewController, let snapshotView = rootController.view.snapshotView(afterScreenUpdates: false) else { return }
-            
+            guard let rootController = presentingViewController.presentingViewController, let snapshotView = rootController.view.snapshotView(afterScreenUpdates: false) else {
+                return
+            }
+
             containerView.insertSubview(snapshotView, aboveSubview: backgroundView)
             snapshotView.frame = initialFrame
             snapshotView.transform = initialTransform
-            snapshotView.contentMode = .top
             rootSnapshotView = snapshotView
             snapshotView.layer.cornerRadius = self.cornerRadius
             snapshotView.layer.masksToBounds = true
-            
+
             let snapshotRoundedView = UIView()
             snapshotRoundedView.layer.cornerRadius = self.cornerRadius
             snapshotRoundedView.layer.masksToBounds = true
-            snapshotRoundedView.backgroundColor = UIColor.black.withAlphaComponent(self.alpha)
+            snapshotRoundedView.backgroundColor = UIColor.black.withAlphaComponent(1 - self.alpha)
             containerView.insertSubview(snapshotRoundedView, aboveSubview: snapshotView)
             snapshotRoundedView.frame = initialFrame
             snapshotRoundedView.transform = initialTransform
             rootSnapshotRoundedView = snapshotRoundedView
         }
-        
+
         presentedViewController.transitionCoordinator?.animate(
-            alongsideTransition: { [weak self] context in
-                guard let `self` = self else { return }
-                self.snapshotView?.transform = .identity
-                self.snapshotViewContainer.transform = finalTransform
-                self.gradeView.alpha = 0
-            }, completion: { _ in
-                rootSnapshotView?.removeFromSuperview()
-                rootSnapshotRoundedView?.removeFromSuperview()
+                alongsideTransition: { [weak self] context in
+                    guard let `self` = self else {
+                        return
+                    }
+                    self.snapshotView?.transform = .identity
+                    self.snapshotViewContainer.transform = finalTransform
+                    self.gradeView.alpha = 0
+                }, completion: { _ in
+            rootSnapshotView?.removeFromSuperview()
+            rootSnapshotRoundedView?.removeFromSuperview()
         })
     }
-    
+
     override func dismissalTransitionDidEnd(_ completed: Bool) {
         super.dismissalTransitionDidEnd(completed)
-        guard let containerView = containerView else { return }
-        
+        guard let containerView = containerView else {
+            return
+        }
+
         self.backgroundView.removeFromSuperview()
         self.snapshotView?.removeFromSuperview()
         self.snapshotViewContainer.removeFromSuperview()
-        
+
         let offscreenFrame = CGRect(x: 0, y: containerView.bounds.height, width: containerView.bounds.width, height: containerView.bounds.height)
         presentedViewController.view.frame = offscreenFrame
         presentedViewController.view.transform = .identity
@@ -266,20 +362,21 @@ class SPStorkPresentationController: UIPresentationController, UIGestureRecogniz
 }
 
 extension SPStorkPresentationController {
-    
+
     @objc func handlePan(gestureRecognizer: UIPanGestureRecognizer) {
-        guard gestureRecognizer.isEqual(self.pan), self.swipeToDismissEnabled else { return }
-        
+        guard gestureRecognizer.isEqual(self.pan), self.swipeToDismissEnabled else {
+            return
+        }
+
         switch gestureRecognizer.state {
         case .began:
-            self.workGester = true
             self.indicatorView.style = .line
             self.presentingViewController.view.layer.removeAllAnimations()
             self.presentingViewController.view.endEditing(true)
             self.presentedViewController.view.endEditing(true)
             gestureRecognizer.setTranslation(CGPoint(x: 0, y: 0), in: containerView)
+            currentTranslation = 0
         case .changed:
-            self.workGester = true
             if self.swipeToDismissEnabled {
                 let translation = gestureRecognizer.translation(in: presentedView)
                 self.updatePresentedViewForTranslation(inVerticalDirection: translation.y)
@@ -287,52 +384,113 @@ extension SPStorkPresentationController {
                 gestureRecognizer.setTranslation(.zero, in: presentedView)
             }
         case .ended:
-            self.workGester = false
             let translation = gestureRecognizer.translation(in: presentedView).y
             if translation >= self.translateForDismiss {
-                self.presentedViewController.dismiss(animated: true, completion: nil)
+                presentedViewController.dismiss(animated: true, completion: nil)
             } else {
                 self.indicatorView.style = .arrow
                 UIView.animate(
-                    withDuration: 0.6,
-                    delay: 0,
-                    usingSpringWithDamping: 1,
-                    initialSpringVelocity: 1,
-                    options: [.curveEaseOut, .allowUserInteraction],
-                    animations: {
-                        self.snapshotView?.transform = .identity
-                        self.presentedView?.transform = .identity
-                        self.gradeView.alpha = self.alpha
-                })
+                        withDuration: 0.6,
+                        delay: 0,
+                        usingSpringWithDamping: 1,
+                        initialSpringVelocity: 1,
+                        options: [.curveEaseOut, .allowUserInteraction],
+                        animations: {
+                            self.snapshotView?.transform = .identity
+                            self.presentedView?.transform = .identity
+                            self.gradeView.alpha = self.alpha
+                        })
             }
         default:
             break
         }
     }
-    
-    func scrollViewDidScroll(_ translation: CGFloat) {
-        if !self.workGester {
-            self.updatePresentedViewForTranslation(inVerticalDirection: translation)
+
+    @objc public func handleScrollViewPan(gestureRecognizer: UIPanGestureRecognizer) {
+        guard let scrollView = scrollView else {
+            return
+        }
+
+        switch gestureRecognizer.state {
+        case .began:
+            let topContentInset: CGFloat
+
+            if #available(iOS 11.0, *) {
+                topContentInset = scrollView.adjustedContentInset.top
+            } else {
+                topContentInset = scrollView.contentInset.top
+            }
+
+            currentTranslation = 0
+            let translation = gestureRecognizer.translation(in: containerView)
+            scrollViewAdjustment = max(scrollView.contentOffset.y + topContentInset - translation.y, 0)
+
+            self.indicatorView.style = .line
+            self.presentingViewController.view.layer.removeAllAnimations()
+            self.presentingViewController.view.endEditing(true)
+            self.presentedViewController.view.endEditing(true)
+
+        case .changed:
+            if self.swipeToDismissEnabled {
+                let translation = gestureRecognizer.translation(in: containerView).y - scrollViewAdjustment
+
+                let previousTranslation = currentTranslation
+                self.updatePresentedViewForTranslation(inVerticalDirection: translation)
+
+                var adjustedContentOffset = scrollView.contentOffset
+                adjustedContentOffset.y += currentTranslation - previousTranslation
+                scrollView.contentOffset = adjustedContentOffset
+            } else {
+                gestureRecognizer.setTranslation(.zero, in: containerView)
+            }
+        case .ended:
+            let translation = gestureRecognizer.translation(in: containerView).y - scrollViewAdjustment
+            if translation >= self.translateForDismiss {
+                presentedViewController.dismiss(animated: true, completion: nil)
+            } else {
+                self.indicatorView.style = .arrow
+                UIView.animate(
+                        withDuration: 0.6,
+                        delay: 0,
+                        usingSpringWithDamping: 1,
+                        initialSpringVelocity: 1,
+                        options: [.curveEaseOut, .allowUserInteraction],
+                        animations: {
+                            self.snapshotView?.transform = .identity
+                            self.presentedView?.transform = .identity
+                            self.gradeView.alpha = self.alpha
+                        })
+            }
+
+        default:
+            break
         }
     }
-    
+
+    func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer, shouldRecognizeSimultaneouslyWith otherGestureRecognizer: UIGestureRecognizer) -> Bool {
+        if gestureRecognizer == scrollView?.panGestureRecognizer && otherGestureRecognizer == customScrollViewPan {
+            return true
+        } else if gestureRecognizer == customScrollViewPan && otherGestureRecognizer == scrollView?.panGestureRecognizer {
+            return true
+        }
+
+        return false
+    }
+
     func updatePresentingController() {
-        if self.startDismissing { return }
+        if self.startDismissing {
+            return
+        }
         self.updateSnapshot()
     }
-    
-    func setIndicator(style: SPStorkIndicatorView.Style) {
-        self.indicatorView.style = style
-    }
-    
-    private func updatePresentedViewForTranslation(inVerticalDirection translation: CGFloat) {
-        if self.startDismissing { return }
-        
-        let elasticThreshold: CGFloat = 120
-        let translationFactor: CGFloat = 1 / 2
 
-        if translation >= 0 {
-            let translationForModal: CGFloat = {
+    private func finalTranslation(for translation: CGFloat) -> CGFloat {
+        var translationForModal: CGFloat
+        if frictionEnabled {
+            let elasticThreshold: CGFloat = 120
+            let translationFactor: CGFloat = 1 / 2
+
+            translationForModal = {
                 if translation >= elasticThreshold {
                     let frictionLength = translation - elasticThreshold
                     let frictionTranslation = 30 * atan(frictionLength / 120) + frictionLength / 10
@@ -341,53 +499,80 @@ extension SPStorkPresentationController {
                     return translation * translationFactor
                 }
             }()
-            
-            self.presentedView?.transform = CGAffineTransform(translationX: 0, y: translationForModal)
-            
-            let scaleFactor = 1 + (translationForModal / 5000)
-            self.snapshotView?.transform = CGAffineTransform.init(scaleX: scaleFactor, y: scaleFactor)
-            let gradeFactor = 1 + (translationForModal / 7000)
-            self.gradeView.alpha = self.alpha - ((gradeFactor - 1) * 15)
         } else {
-            self.presentedView?.transform = CGAffineTransform.identity
+            translationForModal = max(translation, 0)
         }
+
+        translationForModal = roundToPixel(translationForModal)
+
+        return translationForModal
+    }
+
+    private func updatePresentedViewForTranslation(inVerticalDirection translation: CGFloat) {
+        if self.startDismissing {
+            return
+        }
+
+        let translationForModal = finalTranslation(for: translation)
+
+        self.presentedView?.transform = CGAffineTransform(translationX: 0, y: translationForModal)
+
+        let factor = 1 + (translationForModal / 6000)
+        self.snapshotView?.transform = scaleEnabled ? CGAffineTransform.init(scaleX: factor, y: factor) : .identity
+        self.gradeView.alpha = self.alpha - ((factor - 1) * 15)
+
+        currentTranslation = translationForModal
+    }
+
+    func roundToPixel(_ value: CGFloat) -> CGFloat {
+        let screenScale = UIScreen.main.scale
+        return round(value * screenScale) / screenScale
     }
 }
 
 extension SPStorkPresentationController {
-    
+
     override func containerViewWillLayoutSubviews() {
         super.containerViewWillLayoutSubviews()
-        guard let containerView = containerView else { return }
+        guard let containerView = containerView else {
+            return
+        }
         self.updateSnapshotAspectRatio()
         if presentedViewController.view.isDescendant(of: containerView) {
-            UIView.animate(withDuration: 0.1) { [weak self] in
-                guard let `self` = self else { return }
+            UIView.animate(withDuration: 0.2, delay: 0, options: .beginFromCurrentState, animations: { [weak self] in
+                guard let `self` = self else {
+                    return
+                }
+
                 self.presentedViewController.view.frame = self.frameOfPresentedViewInContainerView
-            }
+            })
         }
     }
-    
+
     override func viewWillTransition(to size: CGSize, with coordinator: UIViewControllerTransitionCoordinator) {
         super.viewWillTransition(to: size, with: coordinator)
-        coordinator.animate(alongsideTransition: { contex in
+        coordinator.animate(alongsideTransition: { context in
             self.updateLayoutIndicator()
         }, completion: { [weak self] _ in
             self?.updateSnapshotAspectRatio()
             self?.updateSnapshot()
         })
     }
-    
+
     private func updateLayoutIndicator() {
-        guard let presentedView = self.presentedView else { return }
+        guard let presentedView = self.presentedView else {
+            return
+        }
         self.indicatorView.style = .line
         self.indicatorView.sizeToFit()
         self.indicatorView.frame.origin.y = 12
         self.indicatorView.center.x = presentedView.frame.width / 2
     }
-    
+
     private func updateSnapshot() {
-        guard let currentSnapshotView = presentingViewController.view.snapshotView(afterScreenUpdates: true) else { return }
+        guard let currentSnapshotView = presentingViewController.view.snapshotView(afterScreenUpdates: true) else {
+            return
+        }
         self.snapshotView?.removeFromSuperview()
         self.snapshotViewContainer.addSubview(currentSnapshotView)
         self.constraints(view: currentSnapshotView, to: self.snapshotViewContainer)
@@ -402,26 +587,28 @@ extension SPStorkPresentationController {
         self.snapshotView!.addSubview(self.gradeView)
         self.constraints(view: self.gradeView, to: self.snapshotView!)
     }
-    
+
     private func updateSnapshotAspectRatio() {
-        guard let containerView = containerView, snapshotViewContainer.translatesAutoresizingMaskIntoConstraints == false else { return }
-        
+        guard let containerView = containerView, snapshotViewContainer.translatesAutoresizingMaskIntoConstraints == false else {
+            return
+        }
+
         self.snapshotViewTopConstraint?.isActive = false
         self.snapshotViewWidthConstraint?.isActive = false
         self.snapshotViewAspectRatioConstraint?.isActive = false
-        
+
         let snapshotReferenceSize = presentingViewController.view.frame.size
         let aspectRatio = snapshotReferenceSize.width / snapshotReferenceSize.height
-        
-        self.snapshotViewTopConstraint = snapshotViewContainer.topAnchor.constraint(equalTo: containerView.topAnchor, constant: self.topSpace)
+
+        self.snapshotViewTopConstraint = snapshotViewContainer.topAnchor.constraint(equalTo: containerView.topAnchor, constant: scaleEnabled ? self.topSpace : 0)
         self.snapshotViewWidthConstraint = snapshotViewContainer.widthAnchor.constraint(equalTo: containerView.widthAnchor, multiplier: scaleForPresentingView)
         self.snapshotViewAspectRatioConstraint = snapshotViewContainer.widthAnchor.constraint(equalTo: snapshotViewContainer.heightAnchor, multiplier: aspectRatio)
-        
+
         self.snapshotViewTopConstraint?.isActive = true
         self.snapshotViewWidthConstraint?.isActive = true
         self.snapshotViewAspectRatioConstraint?.isActive = true
     }
-    
+
     private func constraints(view: UIView, to superView: UIView) {
         view.translatesAutoresizingMaskIntoConstraints = false
         NSLayoutConstraint.activate([
@@ -431,10 +618,12 @@ extension SPStorkPresentationController {
             view.bottomAnchor.constraint(equalTo: superView.bottomAnchor)
         ])
     }
-    
+
     private func addCornerRadiusAnimation(for view: UIView?, cornerRadius: CGFloat, duration: CFTimeInterval) {
-        guard let view = view else { return }
-        let animation = CABasicAnimation(keyPath:"cornerRadius")
+        guard let view = view else {
+            return
+        }
+        let animation = CABasicAnimation(keyPath: "cornerRadius")
         animation.timingFunction = CAMediaTimingFunction(name: CAMediaTimingFunctionName.easeOut)
         animation.fromValue = view.layer.cornerRadius
         animation.toValue = cornerRadius

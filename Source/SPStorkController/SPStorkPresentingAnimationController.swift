@@ -23,30 +23,76 @@ import UIKit
 
 final class SPStorkPresentingAnimationController: NSObject, UIViewControllerAnimatedTransitioning {
 
+    var currentTransitionContext: UIViewControllerContextTransitioning?
+    var finishAnimationTime: TimeInterval = 0
+    var animationStartY: CGFloat = 0
+
     func animateTransition(using transitionContext: UIViewControllerContextTransitioning) {
-        
-        guard let presentedViewController = transitionContext.viewController(forKey: .to) else { return }
-        
+        currentTransitionContext = transitionContext
+
+        guard let presentedViewController = transitionContext.viewController(forKey: .to) else {
+            return
+        }
+
         let containerView = transitionContext.containerView
         containerView.addSubview(presentedViewController.view)
 
         let finalFrameForPresentedView = transitionContext.finalFrame(for: presentedViewController)
         presentedViewController.view.frame = finalFrameForPresentedView
-        presentedViewController.view.frame.origin.y = containerView.bounds.height
-        
+        animationStartY = containerView.bounds.height
+        presentedViewController.view.frame.origin.y = animationStartY
+
+        (presentedViewController.presentationController as? SPStorkPresentationController)?.activePresentingAnimationController = self
+
+        finishAnimationTime = ProcessInfo.processInfo.systemUptime + transitionDuration(using: transitionContext)
+        animateTo(finalFrameForPresentedView)
+    }
+
+    var animationsCount: Int = 0
+
+    func animateTo(_ frame: CGRect) {
+        guard let transitionContext = currentTransitionContext,
+              let presentedViewController = transitionContext.viewController(forKey: .to) else {
+            return
+        }
+
+        animationsCount += 1
+        let currentAnimationIdx = animationsCount
+
+        let originalFrame = presentedViewController.view.frame
+        var currentFrame = frame
+        currentFrame.origin.y = presentedViewController.view.layer.presentation()?.frame.origin.y ?? animationStartY
+
+        let shouldLayout = originalFrame.size != currentFrame.size
+        presentedViewController.view.layer.removeAllAnimations()
+        presentedViewController.view.frame = currentFrame
+
+        if shouldLayout {
+            presentedViewController.view.setNeedsLayout()
+            presentedViewController.view.layoutIfNeeded()
+        }
+
+        if currentAnimationIdx != animationsCount {
+            return
+        }
+
         UIView.animate(
-            withDuration: transitionDuration(using: transitionContext),
-            delay: 0,
-            usingSpringWithDamping: 1,
-            initialSpringVelocity: 1,
-            options: .curveEaseOut,
-            animations: {
-                presentedViewController.view.frame = finalFrameForPresentedView
-        }, completion: { finished in
-            transitionContext.completeTransition(finished)
+                withDuration: max(finishAnimationTime - ProcessInfo.processInfo.systemUptime, 0),
+                delay: 0,
+                usingSpringWithDamping: 1,
+                initialSpringVelocity: 1,
+                options: [.curveEaseOut, .beginFromCurrentState],
+                animations: {
+                    presentedViewController.view.frame = frame
+                }, completion: { finished in
+            if self.animationsCount == currentAnimationIdx {
+                self.currentTransitionContext = nil
+                (presentedViewController.presentationController as? SPStorkPresentationController)?.activePresentingAnimationController = nil
+                transitionContext.completeTransition(finished)
+            }
         })
     }
-    
+
     func transitionDuration(using transitionContext: UIViewControllerContextTransitioning?) -> TimeInterval {
         return 0.6
     }
