@@ -437,9 +437,12 @@ extension SPStorkPresentationController {
                 let previousTranslation = currentTranslation
                 self.updatePresentedViewForTranslation(inVerticalDirection: translation)
 
-                var adjustedContentOffset = scrollView.contentOffset
-                adjustedContentOffset.y += currentTranslation - previousTranslation
-                scrollView.contentOffset = adjustedContentOffset
+                let allowedStates: [UIGestureRecognizer.State] = [.began, .changed]
+                if allowedStates.contains(scrollView.panGestureRecognizer.state) {
+                    var adjustedContentOffset = scrollView.contentOffset
+                    adjustedContentOffset.y += currentTranslation - previousTranslation
+                    scrollView.contentOffset = adjustedContentOffset
+                }
             } else {
                 gestureRecognizer.setTranslation(.zero, in: containerView)
             }
