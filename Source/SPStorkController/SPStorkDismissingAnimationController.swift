@@ -31,6 +31,13 @@ final class SPStorkDismissingAnimationController: NSObject, UIViewControllerAnim
 
         let containerView = transitionContext.containerView
         let offscreenFrame = CGRect(x: 0, y: containerView.bounds.height, width: containerView.bounds.width, height: containerView.bounds.height)
+
+        if let controller = presentedViewController.presentationController as? SPStorkPresentationControllerProtocol,
+           let presentingViewController = transitionContext.viewController(forKey: .to) {
+
+            (presentedViewController as? SPStorkPresentationControllerRelatedViewController)?.storkPresentationControllerWillDismiss(controller, presentingViewController: presentingViewController)
+            (presentingViewController as? SPStorkPresentationControllerRelatedViewController)?.storkPresentationControllerWillDismiss(controller, presentingViewController: presentingViewController)
+        }
         
         UIView.animate(
             withDuration: transitionDuration(using: transitionContext),
@@ -42,6 +49,15 @@ final class SPStorkDismissingAnimationController: NSObject, UIViewControllerAnim
                 presentedViewController.view.frame = offscreenFrame
         }) { finished in
                 transitionContext.completeTransition(finished)
+
+            if finished {
+                if let controller = presentedViewController.presentationController as? SPStorkPresentationControllerProtocol,
+                   let presentingViewController = transitionContext.viewController(forKey: .to) {
+
+                    (presentedViewController as? SPStorkPresentationControllerRelatedViewController)?.storkPresentationControllerDidDismiss(controller, presentingViewController: presentingViewController)
+                    (presentingViewController as? SPStorkPresentationControllerRelatedViewController)?.storkPresentationControllerDidDismiss(controller, presentingViewController: presentingViewController)
+                }
+            }
         }
     }
     

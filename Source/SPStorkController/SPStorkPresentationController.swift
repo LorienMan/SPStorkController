@@ -27,6 +27,15 @@ public protocol SPStorkPresentationControllerProtocol: class {
     var scrollView: UIScrollView? { get set }
 
     func updateCustomHeight(_ customHeight: CGFloat)
+    func updatePresentingController()
+}
+
+public protocol SPStorkPresentationControllerRelatedViewController: class {
+    func storkPresentationControllerWillDismiss(_ presentationController: SPStorkPresentationControllerProtocol, presentingViewController: UIViewController)
+    func storkPresentationControllerDidDismiss(_ presentationController: SPStorkPresentationControllerProtocol, presentingViewController: UIViewController)
+
+    func storkPresentationControllerDidStartInteractiveDismissal(_ presentationController: SPStorkPresentationControllerProtocol, presentingViewController: UIViewController)
+    func storkPresentationControllerDidFinishInteractiveDismissal(_ presentationController: SPStorkPresentationControllerProtocol, presentingViewController: UIViewController, willDismiss: Bool)
 }
 
 class SPStorkPresentationController: UIPresentationController, UIGestureRecognizerDelegate, SPStorkPresentationControllerProtocol {
@@ -278,6 +287,7 @@ class SPStorkPresentationController: UIPresentationController, UIGestureRecogniz
         guard let containerView = containerView else {
             return
         }
+
         self.startDismissing = true
 
         let initialFrame: CGRect = presentingViewController.isPresentedAsStork ? presentingViewController.view.frame : containerView.bounds
@@ -370,10 +380,11 @@ extension SPStorkPresentationController {
 
         switch gestureRecognizer.state {
         case .began:
+            (presentedViewController as? SPStorkPresentationControllerRelatedViewController)?.storkPresentationControllerDidStartInteractiveDismissal(self, presentingViewController: presentingViewController)
+            (presentingViewController as? SPStorkPresentationControllerRelatedViewController)?.storkPresentationControllerDidStartInteractiveDismissal(self, presentingViewController: presentingViewController)
+
             self.indicatorView.style = .line
             self.presentingViewController.view.layer.removeAllAnimations()
-            self.presentingViewController.view.endEditing(true)
-            self.presentedViewController.view.endEditing(true)
             gestureRecognizer.setTranslation(CGPoint(x: 0, y: 0), in: containerView)
             currentTranslation = 0
         case .changed:
@@ -386,8 +397,12 @@ extension SPStorkPresentationController {
         case .ended:
             let translation = gestureRecognizer.translation(in: presentedView).y
             if translation >= self.translateForDismiss {
+                (presentedViewController as? SPStorkPresentationControllerRelatedViewController)?.storkPresentationControllerDidFinishInteractiveDismissal(self, presentingViewController: presentingViewController, willDismiss: true)
+                (presentingViewController as? SPStorkPresentationControllerRelatedViewController)?.storkPresentationControllerDidFinishInteractiveDismissal(self, presentingViewController: presentingViewController, willDismiss: true)
                 presentedViewController.dismiss(animated: true, completion: nil)
             } else {
+                (presentedViewController as? SPStorkPresentationControllerRelatedViewController)?.storkPresentationControllerDidFinishInteractiveDismissal(self, presentingViewController: presentingViewController, willDismiss: false)
+                (presentingViewController as? SPStorkPresentationControllerRelatedViewController)?.storkPresentationControllerDidFinishInteractiveDismissal(self, presentingViewController: presentingViewController, willDismiss: false)
                 self.indicatorView.style = .arrow
                 UIView.animate(
                         withDuration: 0.6,
@@ -406,13 +421,16 @@ extension SPStorkPresentationController {
         }
     }
 
-    @objc public func handleScrollViewPan(gestureRecognizer: UIPanGestureRecognizer) {
+    @objc func handleScrollViewPan(gestureRecognizer: UIPanGestureRecognizer) {
         guard let scrollView = scrollView else {
             return
         }
 
         switch gestureRecognizer.state {
         case .began:
+            (presentedViewController as? SPStorkPresentationControllerRelatedViewController)?.storkPresentationControllerDidStartInteractiveDismissal(self, presentingViewController: presentingViewController)
+            (presentingViewController as? SPStorkPresentationControllerRelatedViewController)?.storkPresentationControllerDidStartInteractiveDismissal(self, presentingViewController: presentingViewController)
+
             let topContentInset: CGFloat
 
             if #available(iOS 11.0, *) {
@@ -427,8 +445,6 @@ extension SPStorkPresentationController {
 
             self.indicatorView.style = .line
             self.presentingViewController.view.layer.removeAllAnimations()
-            self.presentingViewController.view.endEditing(true)
-            self.presentedViewController.view.endEditing(true)
 
         case .changed:
             if self.swipeToDismissEnabled {
@@ -449,8 +465,12 @@ extension SPStorkPresentationController {
         case .ended:
             let translation = gestureRecognizer.translation(in: containerView).y - scrollViewAdjustment
             if translation >= self.translateForDismiss {
+                (presentedViewController as? SPStorkPresentationControllerRelatedViewController)?.storkPresentationControllerDidFinishInteractiveDismissal(self, presentingViewController: presentingViewController, willDismiss: true)
+                (presentingViewController as? SPStorkPresentationControllerRelatedViewController)?.storkPresentationControllerDidFinishInteractiveDismissal(self, presentingViewController: presentingViewController, willDismiss: true)
                 presentedViewController.dismiss(animated: true, completion: nil)
             } else {
+                (presentedViewController as? SPStorkPresentationControllerRelatedViewController)?.storkPresentationControllerDidFinishInteractiveDismissal(self, presentingViewController: presentingViewController, willDismiss: false)
+                (presentingViewController as? SPStorkPresentationControllerRelatedViewController)?.storkPresentationControllerDidFinishInteractiveDismissal(self, presentingViewController: presentingViewController, willDismiss: false)
                 self.indicatorView.style = .arrow
                 UIView.animate(
                         withDuration: 0.6,
@@ -481,9 +501,6 @@ extension SPStorkPresentationController {
     }
 
     func updatePresentingController() {
-        if self.startDismissing {
-            return
-        }
         self.updateSnapshot()
     }
 
