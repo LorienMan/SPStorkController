@@ -590,7 +590,7 @@ extension SPStorkPresentationController {
     }
 
     private func updateSnapshot() {
-        guard let currentSnapshotView = presentingViewController.view.snapshotView(afterScreenUpdates: true) else {
+        guard let currentSnapshotView = presentingViewController.view.snapshotView(afterScreenUpdates: false) else {
             return
         }
         self.snapshotView?.removeFromSuperview()
