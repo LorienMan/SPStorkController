@@ -38,7 +38,7 @@ final class SPStorkDismissingAnimationController: NSObject, UIViewControllerAnim
             (presentedViewController as? SPStorkPresentationControllerRelatedViewController)?.storkPresentationControllerWillDismiss(controller, presentingViewController: presentingViewController)
             (presentingViewController as? SPStorkPresentationControllerRelatedViewController)?.storkPresentationControllerWillDismiss(controller, presentingViewController: presentingViewController)
         }
-        
+
         UIView.animate(
             withDuration: transitionDuration(using: transitionContext),
             delay: 0,
@@ -48,8 +48,6 @@ final class SPStorkDismissingAnimationController: NSObject, UIViewControllerAnim
             animations: {
                 presentedViewController.view.frame = offscreenFrame
         }) { finished in
-                transitionContext.completeTransition(finished)
-
             if finished {
                 if let controller = presentedViewController.presentationController as? SPStorkPresentationControllerProtocol,
                    let presentingViewController = transitionContext.viewController(forKey: .to) {
@@ -58,6 +56,8 @@ final class SPStorkDismissingAnimationController: NSObject, UIViewControllerAnim
                     (presentingViewController as? SPStorkPresentationControllerRelatedViewController)?.storkPresentationControllerDidDismiss(controller, presentingViewController: presentingViewController)
                 }
             }
+
+            transitionContext.completeTransition(finished)
         }
     }
     
