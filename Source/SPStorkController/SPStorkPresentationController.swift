@@ -48,6 +48,7 @@ class SPStorkPresentationController: UIPresentationController, UIGestureRecogniz
     var translateForDismiss: CGFloat = 240
     var scaleEnabled: Bool = true
     var frictionEnabled: Bool = true
+    var useSnapshot: Bool = true
 
     var scrollView: UIScrollView? {
         didSet {
@@ -163,7 +164,7 @@ class SPStorkPresentationController: UIPresentationController, UIGestureRecogniz
         self.snapshotViewContainer.frame = initialFrame
         self.updateSnapshot()
         self.snapshotView?.layer.cornerRadius = 0
-        self.backgroundView.backgroundColor = UIColor.black
+        self.backgroundView.backgroundColor = useSnapshot ? UIColor.black : UIColor.clear
         self.backgroundView.translatesAutoresizingMaskIntoConstraints = false
         containerView.insertSubview(self.backgroundView, belowSubview: self.snapshotViewContainer)
         NSLayoutConstraint.activate([
@@ -198,7 +199,7 @@ class SPStorkPresentationController: UIPresentationController, UIGestureRecogniz
         var rootSnapshotRoundedView: UIView?
 
         if presentingViewController.isPresentedAsStork {
-            guard let rootController = presentingViewController.presentingViewController, let snapshotView = rootController.view.snapshotView(afterScreenUpdates: false) else {
+            guard let rootController = presentingViewController.presentingViewController, let snapshotView = useSnapshot ? rootController.view.snapshotView(afterScreenUpdates: false) : UIView() else {
                 return
             }
 
@@ -320,7 +321,8 @@ class SPStorkPresentationController: UIPresentationController, UIGestureRecogniz
         var rootSnapshotRoundedView: UIView?
 
         if presentingViewController.isPresentedAsStork {
-            guard let rootController = presentingViewController.presentingViewController, let snapshotView = rootController.view.snapshotView(afterScreenUpdates: false) else {
+            guard let rootController = presentingViewController.presentingViewController,
+                  let snapshotView = useSnapshot ? rootController.view.snapshotView(afterScreenUpdates: false) : UIView() else {
                 return
             }
 
@@ -590,7 +592,7 @@ extension SPStorkPresentationController {
     }
 
     private func updateSnapshot() {
-        guard let currentSnapshotView = presentingViewController.view.snapshotView(afterScreenUpdates: false) else {
+        guard let currentSnapshotView = useSnapshot ? presentingViewController.view.snapshotView(afterScreenUpdates: false) : UIView() else {
             return
         }
         self.snapshotView?.removeFromSuperview()
