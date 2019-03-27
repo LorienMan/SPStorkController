@@ -35,8 +35,8 @@ final class SPStorkDismissingAnimationController: NSObject, UIViewControllerAnim
         if let controller = presentedViewController.presentationController as? SPStorkPresentationControllerProtocol,
            let presentingViewController = transitionContext.viewController(forKey: .to) {
 
-            (presentedViewController as? SPStorkPresentationControllerRelatedViewController)?.storkPresentationControllerWillDismiss(controller, presentingViewController: presentingViewController)
-            (presentingViewController as? SPStorkPresentationControllerRelatedViewController)?.storkPresentationControllerWillDismiss(controller, presentingViewController: presentingViewController)
+            (presentedViewController as? SPStorkPresentationControllerRelatedViewController)?.storkPresentationControllerWillDismiss?(controller, presentedViewController: presentedViewController)
+            (presentingViewController as? SPStorkPresentationControllerRelatedViewController)?.storkPresentationControllerWillDismiss?(controller, presentedViewController: presentedViewController)
         }
 
         UIView.animate(
@@ -52,8 +52,8 @@ final class SPStorkDismissingAnimationController: NSObject, UIViewControllerAnim
                 if let controller = presentedViewController.presentationController as? SPStorkPresentationControllerProtocol,
                    let presentingViewController = transitionContext.viewController(forKey: .to) {
 
-                    (presentedViewController as? SPStorkPresentationControllerRelatedViewController)?.storkPresentationControllerDidDismiss(controller, presentingViewController: presentingViewController)
-                    (presentingViewController as? SPStorkPresentationControllerRelatedViewController)?.storkPresentationControllerDidDismiss(controller, presentingViewController: presentingViewController)
+                    (presentedViewController as? SPStorkPresentationControllerRelatedViewController)?.storkPresentationControllerDidDismiss?(controller, presentedViewController: presentedViewController)
+                    (presentingViewController as? SPStorkPresentationControllerRelatedViewController)?.storkPresentationControllerDidDismiss?(controller, presentedViewController: presentedViewController)
                 }
             }
 
