@@ -50,6 +50,7 @@ class SPStorkPresentationController: UIPresentationController, UIGestureRecogniz
     var indicatorColor: UIColor = UIColor.init(red: 202 / 255, green: 201 / 255, blue: 207 / 255, alpha: 1)
     var customHeight: CGFloat? = nil
     var translateForDismiss: CGFloat = 240
+    var fullScreenMode: Bool = false
     var scaleEnabled: Bool = true
     var frictionEnabled: Bool = true
     var useSnapshot: Bool = true
@@ -80,6 +81,10 @@ class SPStorkPresentationController: UIPresentationController, UIGestureRecogniz
     private var scrollViewAdjustment: CGFloat = 0
 
     private var topSpace: CGFloat {
+        if fullScreenMode {
+            return 0
+        }
+
         let statusBarHeight: CGFloat = UIApplication.shared.statusBarFrame.height
         return (statusBarHeight < 25) ? 30 : statusBarHeight
     }
@@ -106,12 +111,18 @@ class SPStorkPresentationController: UIPresentationController, UIGestureRecogniz
     }
 
     private var contentHeightAdjustment: CGFloat {
+        if fullScreenMode {
+            return 0
+        }
+
         return self.topSpace + 13
     }
 
     weak var activePresentingAnimationController: SPStorkPresentingAnimationController?
 
     func updateCustomHeight(_ customHeight: CGFloat) {
+        let customHeight = fullScreenMode ? UIScreen.main.bounds.size.height : customHeight
+
         guard customHeight + contentHeightAdjustment != self.customHeight else {
             return
         }
@@ -140,7 +151,7 @@ class SPStorkPresentationController: UIPresentationController, UIGestureRecogniz
             print("SPStorkController - Custom height change to default value. Your height more maximum value")
         }
         let additionTranslate = containerView.bounds.height - customHeight
-        let yOffset: CGFloat = self.topSpace + 13 + additionTranslate
+        let yOffset: CGFloat = contentHeightAdjustment + additionTranslate
         return CGRect(x: 0, y: yOffset, width: containerView.bounds.width, height: containerView.bounds.height - yOffset)
     }
 

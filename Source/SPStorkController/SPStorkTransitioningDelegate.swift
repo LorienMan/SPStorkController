@@ -29,6 +29,7 @@ public final class SPStorkTransitioningDelegate: NSObject, UIViewControllerTrans
     public var indicatorColor: UIColor = UIColor.init(red: 202/255, green: 201/255, blue: 207/255, alpha: 1)
     public var customHeight: CGFloat? = nil
     public var translateForDismiss: CGFloat = 240
+    public var fullScreenMode: Bool = false
     public var scaleEnabled: Bool = true
     public var frictionEnabled: Bool = true
     public var useSnapshot: Bool = true
@@ -41,6 +42,7 @@ public final class SPStorkTransitioningDelegate: NSObject, UIViewControllerTrans
         controller.indicatorColor = self.indicatorColor
         controller.customHeight = self.customHeight
         controller.translateForDismiss = self.translateForDismiss
+        controller.fullScreenMode = self.fullScreenMode
         controller.scaleEnabled = self.scaleEnabled
         controller.frictionEnabled = self.frictionEnabled
         controller.useSnapshot = self.useSnapshot
