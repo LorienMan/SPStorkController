@@ -93,9 +93,7 @@ class SPStorkPresentationController: UIPresentationController, UIGestureRecogniz
         return 0.51
     }
 
-    private var cornerRadius: CGFloat {
-        return 10
-    }
+    var cornerRadius: CGFloat = 10
 
     private var scaleForPresentingView: CGFloat {
         if scaleEnabled {

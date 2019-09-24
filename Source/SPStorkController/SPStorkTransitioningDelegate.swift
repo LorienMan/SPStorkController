@@ -33,6 +33,7 @@ public final class SPStorkTransitioningDelegate: NSObject, UIViewControllerTrans
     public var scaleEnabled: Bool = true
     public var frictionEnabled: Bool = true
     public var useSnapshot: Bool = true
+    public var cornerRadius: CGFloat = 10
     
     public func presentationController(forPresented presented: UIViewController, presenting: UIViewController?, source: UIViewController) -> UIPresentationController? {
         let controller = SPStorkPresentationController(presentedViewController: presented, presenting: presenting)
@@ -46,6 +47,7 @@ public final class SPStorkTransitioningDelegate: NSObject, UIViewControllerTrans
         controller.scaleEnabled = self.scaleEnabled
         controller.frictionEnabled = self.frictionEnabled
         controller.useSnapshot = self.useSnapshot
+        controller.cornerRadius = self.cornerRadius
         controller.transitioningDelegate = self
         return controller
     }
