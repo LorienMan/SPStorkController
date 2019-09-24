@@ -68,8 +68,11 @@ final class SPStorkPresentingAnimationController: NSObject, UIViewControllerAnim
         presentedViewController.view.frame = currentFrame
 
         if shouldLayout {
+            presentedViewController.view.frame = frame
             presentedViewController.view.setNeedsLayout()
             presentedViewController.view.layoutIfNeeded()
+
+            presentedViewController.view.frame = currentFrame
         }
 
         if currentAnimationIdx != animationsCount {
