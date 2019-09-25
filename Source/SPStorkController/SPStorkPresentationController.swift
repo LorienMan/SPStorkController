@@ -586,13 +586,7 @@ extension SPStorkPresentationController {
         }
         self.updateSnapshotAspectRatio()
         if presentedViewController.view.isDescendant(of: containerView) {
-            UIView.animate(withDuration: 0.2, delay: 0, options: .beginFromCurrentState, animations: { [weak self] in
-                guard let `self` = self else {
-                    return
-                }
-
-                self.presentedViewController.view.frame = self.frameOfPresentedViewInContainerView
-            })
+            presentedViewController.view.frame = frameOfPresentedViewInContainerView
         }
     }
 
