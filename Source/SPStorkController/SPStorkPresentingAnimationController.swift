@@ -63,21 +63,21 @@ final class SPStorkPresentingAnimationController: NSObject, UIViewControllerAnim
         var currentFrame = frame
         currentFrame.origin.y = presentedViewController.view.layer.presentation()?.frame.origin.y ?? animationStartY
 
-        let shouldLayout = originalFrame.size != currentFrame.size
         presentedViewController.view.layer.removeAllAnimations()
-        presentedViewController.view.frame = currentFrame
 
+        let shouldLayout = originalFrame.size != currentFrame.size
         if shouldLayout {
             presentedViewController.view.frame = frame
             presentedViewController.view.setNeedsLayout()
+            // Line below may invoke another animateTo cycle
             presentedViewController.view.layoutIfNeeded()
-
-            presentedViewController.view.frame = currentFrame
         }
 
         if currentAnimationIdx != animationsCount {
             return
         }
+
+        presentedViewController.view.frame = currentFrame
 
         UIView.animate(
                 withDuration: max(finishAnimationTime - ProcessInfo.processInfo.systemUptime, 0),
