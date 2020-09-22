@@ -150,7 +150,7 @@ class SPStorkPresentationController: UIPresentationController, UIGestureRecogniz
         }
         let additionTranslate = containerView.bounds.height - customHeight
         let yOffset: CGFloat = contentHeightAdjustment + additionTranslate
-        return CGRect(x: 0, y: yOffset, width: containerView.bounds.width, height: containerView.bounds.height - yOffset)
+        return CGRect(x: 0, y: roundToPixel(yOffset), width: containerView.bounds.width, height: roundToPixel(containerView.bounds.height - yOffset))
     }
 
     override func presentationTransitionWillBegin() {
